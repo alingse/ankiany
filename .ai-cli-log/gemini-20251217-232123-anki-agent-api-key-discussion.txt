@@ -497,7 +497,7 @@ Tips for getting started:
   首先，我需要创建 docs 目录。
 
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ✓  Shell mkdir -p docs [current working directory /home/tink/output/myown/ankiany] (创建 docs 目录来存储项目…  │
+│ ✓  Shell mkdir -p docs [current working directory /home/user/output/myown/ankiany] (创建 docs 目录来存储项目…  │
 │                                                                                                                │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ✦ docs 目录已创建。现在，我将把方案内容写入 docs/plan.01.md 文件。
@@ -586,7 +586,7 @@ Tips for getting started:
   现在，我将执行计划的第一步：环境设置与安装，即添加 claude-agent-sdk 和 genanki 作为项目依赖。
 
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ✓  Shell uv add claude-agent-sdk genanki [current working directory /home/tink/output/myown/ankiany] (添加 cl… │
+│ ✓  Shell uv add claude-agent-sdk genanki [current working directory /home/user/output/myown/ankiany] (添加 cl… │
 │                                                                                                                │
 │ Resolved 38 packages in 7.11s                                                                                  │
 │ Prepared 15 packages in 26.36s                                                                                 │
