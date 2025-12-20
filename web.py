@@ -117,3 +117,16 @@ async def download_file(session_id: str):
         filename=encoded_filename,
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
     )
+
+
+if __name__ == "__main__":
+    import uvicorn
+    from uvicorn.config import LOGGING_CONFIG
+
+    # 修改日志格式，加入时间戳
+    LOGGING_CONFIG["formatters"]["default"]["fmt"] = "%(asctime)s %(levelprefix)s %(message)s"
+    LOGGING_CONFIG["formatters"]["access"]["fmt"] = '%(asctime)s %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s'
+    LOGGING_CONFIG["formatters"]["default"]["datefmt"] = "%Y-%m-%d %H:%M:%S"
+    LOGGING_CONFIG["formatters"]["access"]["datefmt"] = "%Y-%m-%d %H:%M:%S"
+
+    uvicorn.run("web:app", host="0.0.0.0", port=8001, reload=False)
