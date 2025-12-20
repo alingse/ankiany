@@ -136,7 +136,7 @@ async def create_anki_package_from_cards(args: Dict[str, Any]) -> Dict[str, Any]
 
     # Debug file also gets a timestamp/uuid to prevent overwrite during debug
     debug_suffix = str(uuid.uuid4())[:8]
-    debug_filename = f"debug_{{topic.replace(' ', '_')}}_{debug_suffix}_input.json"
+    debug_filename = f"debug_{topic.replace(' ', '_')}_{debug_suffix}_input.json"
     with open(debug_filename, "w", encoding="utf-8") as f:
         json.dump(args, f, ensure_ascii=False, indent=2)
     print(f"DEBUG: Input data saved to {debug_filename}")
