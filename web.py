@@ -122,6 +122,12 @@ async def download_file(session_id: str):
 if __name__ == "__main__":
     import uvicorn
     from uvicorn.config import LOGGING_CONFIG
+    import argparse
+
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Run the Anki card generation web server")
+    parser.add_argument("--port", type=int, default=8001, help="Port to run the server on (default: 8001)")
+    args = parser.parse_args()
 
     # 修改日志格式，加入时间戳
     LOGGING_CONFIG["formatters"]["default"]["fmt"] = "%(asctime)s %(levelprefix)s %(message)s"
@@ -129,4 +135,5 @@ if __name__ == "__main__":
     LOGGING_CONFIG["formatters"]["default"]["datefmt"] = "%Y-%m-%d %H:%M:%S"
     LOGGING_CONFIG["formatters"]["access"]["datefmt"] = "%Y-%m-%d %H:%M:%S"
 
-    uvicorn.run("web:app", host="0.0.0.0", port=8001, reload=False)
+    print(f"Starting server on port {args.port}")
+    uvicorn.run("web:app", host="0.0.0.0", port=args.port, reload=False)

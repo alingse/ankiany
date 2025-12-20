@@ -130,11 +130,10 @@ async def create_anki_package_from_cards(args: Dict[str, Any]) -> Dict[str, Any]
     topic = args["topic"]
     cards_data = args["cards"]
     import uuid
+    import json
+    import hashlib
 
     # --- Debug Logic: Save input to a local JSON file ---
-    import json
-
-    # Debug file also gets a timestamp/uuid to prevent overwrite during debug
     debug_suffix = str(uuid.uuid4())[:8]
     debug_filename = f"debug_{topic.replace(' ', '_')}_{debug_suffix}_input.json"
     with open(debug_filename, "w", encoding="utf-8") as f:
@@ -145,9 +144,20 @@ async def create_anki_package_from_cards(args: Dict[str, Any]) -> Dict[str, Any]
     # 鲁棒性处理：如果 LLM 传过来的是 JSON 字符串而不是列表对象，尝试解析它
     if isinstance(cards_data, str):
         try:
-            print("Detected cards_data is a string, attempting to parse as JSON...")
-            cards_data = json.loads(cards_data)
-        except json.JSONDecodeError as e:
+            # Clean up potential invalid control characters (like raw newlines in strings)
+            # but preserve valid escapes. This is tricky, but let's try a simple approach first.
+            cleaned_cards_data = cards_data.replace('\n', '\\n').replace('\r', '\\r')
+            # Wait, if they are already escaped, this will double escape. 
+            # Better to just try loading and if it fails, try a more aggressive cleanup.
+            try:
+                cards_data = json.loads(cards_data)
+            except json.JSONDecodeError:
+                # Remove non-printable characters except common whitespace
+                import re
+                cleaned = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', cards_data)
+                cards_data = json.loads(cleaned)
+            print("Successfully parsed cards_data from string.")
+        except Exception as e:
             return {
                 "content": [
                     {
@@ -159,6 +169,10 @@ async def create_anki_package_from_cards(args: Dict[str, Any]) -> Dict[str, Any]
             }
 
     print(f"Creating Anki package for topic: {topic} with {len(cards_data)} cards.")
+
+    # Generate a stable deck ID based on topic
+    deck_id = int(hashlib.sha256(topic.encode('utf-8')).hexdigest()[:8], 16)
+    my_deck = genanki.Deck(deck_id, f"{topic} 学习包")
 
     # 1. 基础问答模型
     model_qa = genanki.Model(
@@ -191,7 +205,7 @@ async def create_anki_package_from_cards(args: Dict[str, Any]) -> Dict[str, Any]
         css=".card { font-family: arial; font-size: 20px; text-align: center; }",
     )
 
-    # 3. 选择题模型 (新增)
+    # 3. 选择题模型
     model_mcq = genanki.Model(
         1607392321,
         "Simple MCQ Model",
@@ -206,40 +220,75 @@ async def create_anki_package_from_cards(args: Dict[str, Any]) -> Dict[str, Any]
         css=".card { font-family: arial; font-size: 20px; }",
     )
 
-    deck_id = abs(hash(topic)) % (10**9)
-    my_deck = genanki.Deck(deck_id, f"{topic} 学习包")
+    skipped_count = 0
+    added_count = 0
 
     for card_dict in cards_data:
         m_type = card_dict.get("model_type")
-        content = card_dict.get("content", "")
+        content = card_dict.get("content", "").strip()
+        if not content:
+            skipped_count += 1
+            continue
 
+        note = None
         if m_type == "qa":
+            # Using split("||", 1) is safer to ensure we get exactly two parts if they exist
+            # and don't lose the rest of the content if there are more ||
             parts = content.split("||", 1)
             if len(parts) == 2:
-                front, back = parts
-                my_note = genanki.Note(
-                    model=model_qa, fields=[front.strip(), back.strip()]
+                front, back = parts[0], parts[1]
+                # Replace newlines with <br> for better HTML rendering in Anki
+                front_html = front.strip().replace("\n", "<br>")
+                back_html = back.strip().replace("\n", "<br>")
+                note = genanki.Note(
+                    model=model_qa, 
+                    fields=[front_html, back_html],
+                    guid=genanki.guid_for(front.strip(), back.strip(), topic)
                 )
-                my_deck.add_note(my_note)
+            else:
+                # Try fallback split with \n\n or \n
+                parts = content.split("\n\n", 1)
+                if len(parts) == 2:
+                    front, back = parts
+                    front_html = front.strip().replace("\n", "<br>")
+                    back_html = back.strip().replace("\n", "<br>")
+                    note = genanki.Note(
+                        model=model_qa, 
+                        fields=[front_html, back_html],
+                        guid=genanki.guid_for(front.strip(), back.strip(), topic)
+                    )
+                else:
+                    skipped_count += 1
 
         elif m_type == "cloze":
-            my_note = genanki.Note(model=model_cloze, fields=[content])
-            my_deck.add_note(my_note)
+            # Ensure it contains at least one cloze deletion
+            if "{{c" not in content:
+                content = f"{{{{c1::{content}}}}}"
+            
+            content_html = content.strip().replace("\n", "<br>")
+            note = genanki.Note(
+                model=model_cloze, 
+                fields=[content_html],
+                guid=genanki.guid_for(content.strip(), topic)
+            )
 
         elif m_type == "mcq":
-            # 预期格式: 题目 || 选项(换行分隔) || 答案
             parts = content.split("||")
             if len(parts) >= 3:
-                question = parts[0].strip()
-                # 选项部分可能包含换行，我们将其转换为 HTML 的换行以便显示
+                question = parts[0].strip().replace("\n", "<br>")
                 options = parts[1].strip().replace("\n", "<br>")
-                answer = parts[2].strip()
-                my_note = genanki.Note(
-                    model=model_mcq, fields=[question, options, answer]
+                answer = parts[2].strip().replace("\n", "<br>")
+                note = genanki.Note(
+                    model=model_mcq, 
+                    fields=[question, options, answer],
+                    guid=genanki.guid_for(question, options, topic)
                 )
-                my_deck.add_note(my_note)
             else:
-                print(f"Skipping invalid MCQ card: {content[:50]}...")
+                skipped_count += 1
+
+        if note:
+            my_deck.add_note(note)
+            added_count += 1
 
     # Generate unique filename
     unique_suffix = str(uuid.uuid4())[:8]
@@ -252,8 +301,13 @@ async def create_anki_package_from_cards(args: Dict[str, Any]) -> Dict[str, Any]
 
     genanki.Package(my_deck).write_to_file(output_filepath)
 
-    # Relative path for the message (just filename is fine, the web layer handles the path)
-    result_message = f"成功为主题 '{topic}' 创建了 Anki 包。\n- 卡片数量: {len(my_deck.notes)}\n- 文件名: {filename}"
+    result_message = (
+        f"成功为主题 '{topic}' 创建了 Anki 包。\n"
+        f"- 总输入卡片: {len(cards_data)}\n"
+        f"- 成功添加: {added_count}\n"
+        f"- 跳过(格式错误): {skipped_count}\n"
+        f"- 文件名: {filename}"
+    )
     return {"content": [{"type": "text", "text": result_message}]}
 
 
