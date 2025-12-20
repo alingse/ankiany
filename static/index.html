@@ -307,7 +307,7 @@
 
         <div class="action-area" id="actionArea">
             <button id="newBtn" data-i18n="new">New</button>
-            <a id="downloadBtn" href="#" target="_blank" style="display: none;" data-i18n="download">Download</a>
+            <a id="downloadBtn" href="#" download style="display: none;" data-i18n="download">Download</a>
         </div>
     </div>
 
@@ -423,13 +423,13 @@
             };
         }
         function showDownload(sessionId, filename) {
-            downloadBtn.href = `/download/${sessionId}/${filename}`;
+            downloadBtn.href = `/download/${sessionId}`;
             downloadBtn.style.display = 'inline-flex';
             downloadBtn.textContent = translations[currentLang].download;
-            
+
             generatedFilename.textContent = filename;
             resultMessage.style.display = 'flex';
-            
+
             actionArea.classList.add('visible');
             generateBtn.disabled = false;
         }
