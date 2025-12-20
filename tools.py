@@ -136,7 +136,7 @@ async def create_anki_package_from_cards(args: Dict[str, Any]) -> Dict[str, Any]
 
     # Debug file also gets a timestamp/uuid to prevent overwrite during debug
     debug_suffix = str(uuid.uuid4())[:8]
-    debug_filename = f"debug_{topic.replace(' ', '_')}_{debug_suffix}_input.json"
+    debug_filename = f"debug_{{topic.replace(' ', '_')}}_{debug_suffix}_input.json"
     with open(debug_filename, "w", encoding="utf-8") as f:
         json.dump(args, f, ensure_ascii=False, indent=2)
     print(f"DEBUG: Input data saved to {debug_filename}")
@@ -244,11 +244,16 @@ async def create_anki_package_from_cards(args: Dict[str, Any]) -> Dict[str, Any]
     # Generate unique filename
     unique_suffix = str(uuid.uuid4())[:8]
     filename = f"{topic.replace(' ', '_').replace('/', '_')}_{unique_suffix}.apkg"
-    output_filepath = os.path.join(os.getcwd(), filename)
+
+    from session_context import output_dir_var
+
+    target_dir = output_dir_var.get() or os.getcwd()
+    output_filepath = os.path.join(target_dir, filename)
 
     genanki.Package(my_deck).write_to_file(output_filepath)
 
-    result_message = f"成功为主题 '{topic}' 创建了 Anki 包。\n- 卡片数量: {len(my_deck.notes)}\n- 文件名: {filename} (已保存，防止覆盖)"
+    # Relative path for the message (just filename is fine, the web layer handles the path)
+    result_message = f"成功为主题 '{topic}' 创建了 Anki 包。\n- 卡片数量: {len(my_deck.notes)}\n- 文件名: {filename}"
     return {"content": [{"type": "text", "text": result_message}]}
 
 
@@ -256,7 +261,11 @@ def get_tools_list():
     """
     返回所有工具函数的列表。
     """
-    return [search_web_for_topic, read_web_page_content, create_anki_package_from_cards]
+    return [
+        search_web_for_topic,
+        read_web_page_content,
+        create_anki_package_from_cards,
+    ]
 
 
 def get_server():

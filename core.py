@@ -15,9 +15,9 @@ def load_system_prompt():
         return f.read()
 
 
-async def run_anki_agent(user_prompt: str, verbose: bool = False):
+async def run_anki_agent_generator(user_prompt: str, verbose: bool = False):
     """
-    Anki Agent 核心逻辑。
+    Anki Agent 核心逻辑 (Generator).
     """
     # 1. 获取本地工具 Server
     server = get_server()
@@ -30,10 +30,10 @@ async def run_anki_agent(user_prompt: str, verbose: bool = False):
 
     system_prompt = load_system_prompt()
 
-    print("--- 启动 Anki Agent ---")
-    print(f"已加载工具集 '{server_name}': {tool_names}")
-    print(f"正在处理任务: {user_prompt}")
-    print("-" * 30)
+    yield "--- 启动 Anki Agent ---"
+    yield f"已加载工具集 '{server_name}': {tool_names}"
+    yield f"正在处理任务: {user_prompt}"
+    yield "-" * 30
 
     # 3. 配置 Agent 选项
     options = ClaudeAgentOptions(
@@ -53,15 +53,23 @@ async def run_anki_agent(user_prompt: str, verbose: bool = False):
                     for block in message.content:
                         if isinstance(block, TextBlock):
                             # 打印 Claude 的思考或回答
-                            print(f"\n🤖 Claude: {block.text}")
+                            yield f"🤖 Claude: {block.text}"
                         elif isinstance(block, ToolUseBlock):
                             # 打印工具调用状态
-                            print(f"\n🛠️  调用工具: {block.name}")
+                            yield f"🛠️  调用工具: {block.name}"
                             if verbose:
-                                print(f"    参数: {block.input}")
+                                yield f"    参数: {block.input}"
 
     except Exception as e:
-        print(f"\n❌ 发生错误: {e}")
+        yield f"❌ 发生错误: {e}"
         import traceback
 
         traceback.print_exc()
+
+
+async def run_anki_agent(user_prompt: str, verbose: bool = False):
+    """
+    Anki Agent 核心逻辑 (CLI wrapper).
+    """
+    async for log in run_anki_agent_generator(user_prompt, verbose):
+        print(log)
