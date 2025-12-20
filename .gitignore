@@ -1,3 +1,4 @@
 *.apkg
 __pycache__/
 *input.json
+*.log
