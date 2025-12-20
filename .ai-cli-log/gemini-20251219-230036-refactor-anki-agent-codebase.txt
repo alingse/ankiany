@@ -321,7 +321,7 @@ Tips for getting started:
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ✦ I will verify the refactored main.py by running it with the query "Redis 面试".
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ✓  Shell uv run python main.py "Redis 面试" [current working directory /home/tink/output/myown/ankiany] (验证 main.py 改造后的功能)                │
+│ ✓  Shell uv run python main.py "Redis 面试" [current working directory /home/user/output/myown/ankiany] (验证 main.py 改造后的功能)                │
 │                                                                                                                                                    │
 │ --- 启动 Anki Agent ---                                                                                                                            │
 │ 已加载工具集 'anki-tools': ['search_web_for_topic', 'read_web_page_content', 'create_anki_package_from_cards']                                     │
@@ -375,7 +375,7 @@ Tips for getting started:
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ✦ I will now verify the new cli.py with the same query "Redis 面试".
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ✓  Shell uv run python cli.py "Redis 面试" [current working directory /home/tink/output/myown/ankiany] (验证 cli.py 的功能)                        │
+│ ✓  Shell uv run python cli.py "Redis 面试" [current working directory /home/user/output/myown/ankiany] (验证 cli.py 的功能)                        │
 │                                                                                                                                                    │
 │ --- 启动 Anki Agent ---                                                                                                                            │
 │ 已加载工具集 'anki-tools': ['search_web_for_topic', 'read_web_page_content', 'create_anki_package_from_cards']                                     │
@@ -421,7 +421,7 @@ Tips for getting started:
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ✦ I will run ruff check . to identify any linting issues and ruff format . to ensure consistent code styling.
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ✓  Shell uv run ruff check . && uv run ruff format . [current working directory /home/tink/output/myown/ankiany] (运行 ruff 进行代码检查和格式化)  │
+│ ✓  Shell uv run ruff check . && uv run ruff format . [current working directory /home/user/output/myown/ankiany] (运行 ruff 进行代码检查和格式化)  │
 │                                                                                                                                                    │
 │ F401 [*] `asyncio` imported but unused                                                                                                             │
 │  --> core.py:1:8                                                                                                                                   │
@@ -495,7 +495,7 @@ Tips for getting started:
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ✦ I will use ruff check . --fix to automatically resolve the identified linting issues.
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ✓  Shell uv run ruff check . --fix && uv run ruff format . [current working directory /home/tink/output/myown/ankiany] (自动修复 ruff 检查出的问…  │
+│ ✓  Shell uv run ruff check . --fix && uv run ruff format . [current working directory /home/user/output/myown/ankiany] (自动修复 ruff 检查出的问…  │
 │                                                                                                                                                    │
 │ Found 6 errors (6 fixed, 0 remaining).                                                                                                             │
 │ 6 files reformatted                                                                                                                                │
@@ -514,7 +514,7 @@ Tips for getting started:
 
   我将删除 main.py 并再次验证 cli.py。
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ -  Shell rm main.py && uv run python cli.py "Redis 数据类型" [current working directory /home/tink/output/myown/ankiany] (删除冗余的 main.py 并验… │
+│ -  Shell rm main.py && uv run python cli.py "Redis 数据类型" [current working directory /home/user/output/myown/ankiany] (删除冗余的 main.py 并验… │
 │                                                                                                                                                    │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
