@@ -39,7 +39,7 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             data = await websocket.receive_text()
-            prompt = data
+            prompt = data.strip()[:25]  # 限制长度，取前25字符
 
             # Send start signal
             await websocket.send_json({"type": "start"})
