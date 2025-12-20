@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="title">Anki Generator Agent</title>
+    <style>
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #333333;
+            --input-border: #e0e0e0;
+            --input-focus: #a0a0a0;
+            --console-bg: #1e1e1e;
+            --console-text: #cccccc;
+            --btn-primary-bg: #333333;
+            --btn-primary-text: #ffffff;
+            --btn-primary-hover: #555555;
+            --btn-secondary-bg: #f0f0f0;
+            --btn-secondary-text: #333333;
+            --btn-secondary-hover: #e0e0e0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .lang-switch {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .lang-btn {
+            background: none;
+            border: 1px solid transparent;
+            cursor: pointer;
+            padding: 5px 8px;
+            font-size: 12px;
+            color: #666;
+            border-radius: 4px;
+            outline: none;
+            min-width: auto; /* Remove fixed width */
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .lang-btn.active {
+            border-color: #ccc;
+            color: #000;
+            font-weight: bold;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 800px;
+            margin-top: 50px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        h1 {
+            font-weight: 300;
+            color: #111;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="text"] {
+            flex-grow: 1;
+            padding: 15px;
+            font-size: 16px;
+            border: 1px solid var(--input-border);
+            border-radius: 8px;
+            outline: none;
+            transition: border-color 0.2s;
+            background: #fafafa;
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--input-focus);
+            background: #fff;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        button, #downloadBtn {
+            padding: 15px 25px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #generateBtn {
+            background-color: var(--btn-primary-bg);
+            color: var(--btn-primary-text);
+            min-width: 120px; /* Minimum width for better appearance */
+            padding: 15px 25px; /* Consistent padding */
+        }
+
+        #generateBtn:hover {
+            background-color: var(--btn-primary-hover);
+        }
+
+        #generateBtn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        #logArea {
+            background-color: var(--console-bg);
+            color: var(--console-text);
+            padding: 20px;
+            border-radius: 8px;
+            height: 40vh; /* Use 40% of viewport height */
+            min-height: 200px; /* Minimum height */
+            max-height: 400px; /* Maximum height */
+            overflow-y: auto;
+            font-family: "Menlo", "Monaco", "Consolas", "Courier New", monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.2);
+            display: none; /* Hidden by default */
+            flex-direction: column;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            word-wrap: break-word;
+        }
+        
+        .log-entry.tool {
+            color: #8fa3bf; /* Muted blue-ish grey for tools */
+        }
+        
+        .log-entry.claude {
+            color: #a8d1a8; /* Muted green for AI */
+        }
+        
+        .log-entry.error {
+            color: #e06c75;
+        }
+
+        #resultMessage {
+            text-align: left;
+            padding: 12px 16px;
+            background-color: #f9f9f9;
+            border: 1px solid #eeeeee;
+            color: #555;
+            border-radius: 8px;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+
+        #resultMessage .filename {
+            font-weight: 500;
+            color: #000;
+            word-break: break-all;
+            flex: 1;
+        }
+
+        #resultMessage::before {
+            content: "✓";
+            color: #52c41a;
+            font-weight: bold;
+        }
+
+        .action-area {
+            display: flex;
+            gap: 12px;
+            justify-content: space-between; /* Space out buttons to ends */
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.5s ease-in;
+        }
+
+        .action-area.visible {
+            opacity: 1;
+        }
+
+        #downloadBtn {
+            background-color: #222; /* Darker black */
+            color: #fff;
+            width: 120px; /* Fixed width */
+            padding: 15px 20px; /* Adjusted padding */
+            text-align: center;
+            box-sizing: border-box; /* Ensure consistent box sizing */
+        }
+
+        #downloadBtn:hover {
+            background-color: #444;
+            transform: translateY(-1px);
+        }
+
+        #newBtn {
+            background-color: var(--btn-secondary-bg);
+            color: var(--btn-secondary-text);
+            width: 120px; /* Fixed width */
+            padding: 15px 20px; /* Adjusted padding */
+            text-align: center;
+        }
+
+        #newBtn:hover {
+            background-color: var(--btn-secondary-hover);
+        }
+
+  
+        /* Mobile adjustments */
+        @media (max-width: 600px) {
+            .container {
+                width: 95%;
+                margin-top: 15px;
+            }
+            .input-group {
+                flex-direction: column;
+            }
+            #generateBtn {
+                width: 100%;
+            }
+            .action-area {
+                flex-direction: row;
+                gap: 10px;
+                justify-content: space-between;
+            }
+            #downloadBtn, #newBtn {
+                flex: 1;
+                max-width: none;
+                text-align: center;
+                padding: 12px 15px; /* Adjusted padding for mobile */
+                width: auto; /* Keep auto width on mobile */
+            }
+            /* Language switch adjustments for mobile */
+            .lang-switch {
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                gap: 5px;
+            }
+            .lang-btn {
+                padding: 3px 6px;
+                font-size: 11px;
+                min-width: auto;
+            }
+            input[type="text"]::placeholder {
+                font-size: 14px;
+            }
+            #logArea {
+                height: 30vh; /* Much smaller than desktop (40vh) to make room for buttons */
+                min-height: 120px; /* Even smaller minimum height */
+                max-height: 250px; /* Smaller maximum height */
+                font-size: 13px; /* Slightly smaller font */
+                padding: 15px; /* Reduce padding from 20px */
+            }
+            footer {
+                padding: 15px 0; /* Smaller padding on mobile */
+                font-size: 11px; /* Smaller font on mobile */
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="lang-switch">
+        <button class="lang-btn" data-lang="en" onclick="setLanguage('en')">English</button>
+        <button class="lang-btn" data-lang="zh" onclick="setLanguage('zh')">中文</button>
+    </div>
+
+    <div class="container">
+        <h1 data-i18n="title">Anki Generator Agent</h1>
+        
+        <div class="input-group">
+            <input type="text" id="topicInput" placeholder="Enter a topic (e.g., 'Python Asyncio', 'French Basics')..." autocomplete="off">
+            <button id="generateBtn" data-i18n="generate">Generate</button>
+        </div>
+
+        <div id="logArea">
+            <div class="log-entry" data-i18n="waiting">Waiting for input...</div>
+        </div>
+
+        <div id="resultMessage">
+            <span class="filename" id="generatedFilename"></span>
+        </div>
+
+        <div class="action-area" id="actionArea">
+            <button id="newBtn" data-i18n="new">New</button>
+            <a id="downloadBtn" href="#" target="_blank" style="display: none;" data-i18n="download">Download</a>
+        </div>
+    </div>
+
+    <footer style="text-align: center; padding: 20px 0; font-size: 12px; color: #666; margin-top: auto;">
+        <p style="margin: 5px 0;">
+            <a href="https://www.starsou.com" target="_blank" style="color: #666; text-decoration: none;">Powered by alingse</a> | © 2025 All rights reserved
+        </p>
+    </footer>
+
+    <script>
+        const topicInput = document.getElementById('topicInput');
+        const generateBtn = document.getElementById('generateBtn');
+        const logArea = document.getElementById('logArea');
+        const actionArea = document.getElementById('actionArea');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const newBtn = document.getElementById('newBtn');
+        const resultMessage = document.getElementById('resultMessage');
+        const generatedFilename = document.getElementById('generatedFilename');
+
+        let ws = null;
+        let currentLang = 'en';
+
+        const translations = {
+            en: {
+                title: "Anki Generator Agent",
+                placeholder: "Enter a topic (e.g., 'MySQL Interview', 'High School Geography', 'Investment Basics')...",
+                generate: "Generate",
+                new: "New",
+                download: "Download",
+                waiting: "Waiting for input...",
+                started: "Started generation...",
+                done: "Done!",
+                error: "Error: "
+            },
+            zh: {
+                title: "Anki 生成助手",
+                placeholder: "输入主题 (例如: 'MySQL 面试', '高中地理', '投资理财')...",
+                generate: "生成",
+                new: "新建",
+                download: "下载",
+                waiting: "等待输入...",
+                started: "开始生成...",
+                done: "完成!",
+                error: "错误: "
+            }
+        };
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (translations[lang][key]) {
+                    el.textContent = translations[lang][key];
+                }
+            });
+            topicInput.placeholder = translations[lang].placeholder;
+            document.title = translations[lang].title;
+
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.lang === lang) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            // Re-render buttons/messages text if visible
+            if (downloadBtn.style.display !== 'none') {
+                downloadBtn.textContent = translations[lang].download;
+            }
+        }
+
+        // Initialize language based on browser
+        const browserLang = navigator.language.startsWith('zh') ? 'zh' : 'en';
+        setLanguage(browserLang);
+
+        function appendLog(message, type='normal') {
+            const div = document.createElement('div');
+            div.className = 'log-entry ' + type;
+            div.textContent = message;
+            logArea.appendChild(div);
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+
+        function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'start') {
+                    logArea.innerHTML = '';
+                    appendLog(translations[currentLang].started, 'normal');
+                } else if (data.type === 'log') {
+                    let msg = data.message;
+                    let type = 'normal';
+                    if (msg.startsWith('🛠️')) type = 'tool';
+                    if (msg.startsWith('🤖')) type = 'claude';
+                    if (msg.startsWith('❌')) type = 'error';
+                    appendLog(msg, type);
+                } else if (data.type === 'complete') {
+                    appendLog(translations[currentLang].done, 'normal');
+                    showDownload(data.session_id, data.filename);
+                } else if (data.type === 'error') {
+                    appendLog(translations[currentLang].error + data.message, 'error');
+                    generateBtn.disabled = false;
+                }
+            };
+
+            ws.onclose = function() {
+                // appendLog('Connection closed.', 'error');
+                generateBtn.disabled = false;
+            };
+        }
+        function showDownload(sessionId, filename) {
+            downloadBtn.href = `/download/${sessionId}/${filename}`;
+            downloadBtn.style.display = 'inline-flex';
+            downloadBtn.textContent = translations[currentLang].download;
+            
+            generatedFilename.textContent = filename;
+            resultMessage.style.display = 'flex';
+            
+            actionArea.classList.add('visible');
+            generateBtn.disabled = false;
+        }
+
+        generateBtn.addEventListener('click', () => {
+            const topic = topicInput.value.trim();
+            if (!topic) return;
+
+            logArea.style.display = 'flex'; // Show log area on click
+            resultMessage.style.display = 'none';
+
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                connect();
+                // Wait for connection to send
+                ws.onopen = () => {
+                    ws.send(topic);
+                    generateBtn.disabled = true;
+                    actionArea.classList.remove('visible');
+                    downloadBtn.style.display = 'none';
+                };
+            } else {
+                ws.send(topic);
+                generateBtn.disabled = true;
+                actionArea.classList.remove('visible');
+                downloadBtn.style.display = 'none';
+            }
+        });
+        
+        // Enter key to submit
+        topicInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                generateBtn.click();
+            }
+        });
+
+        newBtn.addEventListener('click', () => {
+            topicInput.value = '';
+            logArea.innerHTML = `<div class="log-entry" data-i18n="waiting">${translations[currentLang].waiting}</div>`;
+            logArea.style.display = 'none'; // Hide log area on new
+            resultMessage.style.display = 'none';
+            actionArea.classList.remove('visible');
+            downloadBtn.style.display = 'none';
+            generateBtn.disabled = false;
+            topicInput.focus();
+        });
+
+        // Initialize connection
+        // connect(); 
+        // Actually, better to connect on demand or keep alive? 
+        // Let's connect on load to be ready.
+        connect();
+
+    </script>
+</body>
+</html>
