@@ -1,10 +1,12 @@
 import os
+import asyncio
 from claude_agent_sdk import (
     ClaudeAgentOptions,
     ClaudeSDKClient,
     AssistantMessage,
     TextBlock,
     ToolUseBlock,
+    ResultMessage,
 )
 from tools import get_server, get_tools_list
 
@@ -59,11 +61,20 @@ async def run_anki_agent_generator(user_prompt: str, verbose: bool = False):
                             yield f"🛠️  调用工具: {block.name}"
                             if verbose:
                                 yield f"    参数: {block.input}"
+                elif isinstance(message, ResultMessage):
+                    if message.usage:
+                        yield f"📊 Token 使用情况: {message.usage}"
+                    if message.total_cost_usd is not None:
+                        yield f"💰 本次花费: ${message.total_cost_usd:.4f}"
+                    yield f"✅ 任务完成 (轮次: {message.num_turns})"
 
+    except asyncio.CancelledError:
+        yield "⚠️ 任务已被用户取消。"
+        # Re-raise to ensure the task is truly cancelled in the caller
+        raise
     except Exception as e:
         yield f"❌ 发生错误: {e}"
         import traceback
-
         traceback.print_exc()
 
 

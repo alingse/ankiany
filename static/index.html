@@ -158,6 +158,11 @@
             color: #a8d1a8; /* Muted green for AI */
         }
         
+        .log-entry.usage {
+            color: #d1b88a; /* Soft gold/brown for usage info */
+            font-style: italic;
+        }
+        
         .log-entry.error {
             color: #e06c75;
         }
@@ -407,6 +412,7 @@
                     if (msg.startsWith('🛠️')) type = 'tool';
                     if (msg.startsWith('🤖')) type = 'claude';
                     if (msg.startsWith('❌')) type = 'error';
+                    if (msg.startsWith('📊') || msg.startsWith('💰')) type = 'usage';
                     appendLog(msg, type);
                 } else if (data.type === 'complete') {
                     appendLog(translations[currentLang].done, 'normal');

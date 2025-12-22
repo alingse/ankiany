@@ -1,6 +1,7 @@
 import os
 import glob
 import uuid
+import asyncio
 from urllib.parse import quote
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import FileResponse
@@ -26,6 +27,72 @@ async def get():
     return FileResponse("static/index.html")
 
 
+async def run_generation_task(websocket: WebSocket, prompt: str, session_dir: str, session_id: str):
+    """
+    Helper to run the generator and handle its output.
+    """
+    try:
+        # Track generated files in the SESSION directory
+        existing_files = set(glob.glob(os.path.join(session_dir, "*.apkg")))
+
+        async for log in run_anki_agent_generator(prompt, verbose=True):
+            try:
+                await websocket.send_json({"type": "log", "message": log})
+            except (RuntimeError, WebSocketDisconnect):
+                # Socket is closed, stop generating and exit loop to trigger cleanup
+                print(f"WebSocket closed for session {session_id}, stopping generation.")
+                return
+
+        # Find new file in session directory
+        current_files = set(glob.glob(os.path.join(session_dir, "*.apkg")))
+        new_files = current_files - existing_files
+
+        generated_file_path = None
+        if new_files:
+            generated_file_path = max(new_files, key=os.path.getctime)
+
+        if generated_file_path:
+            filename = os.path.basename(generated_file_path)
+            yield_msg = f"✨ 成功生成 Anki 包: {filename}"
+            try:
+                await websocket.send_json({"type": "log", "message": yield_msg})
+                print(f"File generated for {session_id}: {generated_file_path}")
+
+                # Store in global session store
+                session_files[session_id] = {
+                    "filepath": generated_file_path,
+                    "filename": filename
+                }
+                # Send session_id and filename
+                await websocket.send_json(
+                    {
+                        "type": "complete",
+                        "session_id": session_id,
+                        "filename": filename,
+                    }
+                )
+            except (RuntimeError, WebSocketDisconnect):
+                pass
+        else:
+            try:
+                await websocket.send_json(
+                    {"type": "error", "message": "No .apkg file was generated."}
+                )
+            except (RuntimeError, WebSocketDisconnect):
+                pass
+    except asyncio.CancelledError:
+        print(f"Generation task for session {session_id} was cancelled.")
+        # The 'async with' in core.py will handle the actual Claude process cleanup
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        try:
+            await websocket.send_json({"type": "error", "message": str(e)})
+        except:
+            pass
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
@@ -35,60 +102,49 @@ async def websocket_endpoint(websocket: WebSocket):
 
     # Set the context var for this session
     token = output_dir_var.set(session_dir)
+    print(f"New session started: {session_id}")
+
+    generation_task = None
 
     try:
         while True:
             data = await websocket.receive_text()
-            prompt = data.strip()[:25]  # 限制长度，取前25字符
+            prompt = data.strip()
+            print(f"User Query [{session_id}]: {prompt}")
+
+            # Cancel previous task if still running
+            if generation_task and not generation_task.done():
+                generation_task.cancel()
+                try:
+                    await generation_task
+                except asyncio.CancelledError:
+                    pass
 
             # Send start signal
             await websocket.send_json({"type": "start"})
 
-            try:
-                # Track generated files in the SESSION directory
-                existing_files = set(glob.glob(os.path.join(session_dir, "*.apkg")))
-
-                async for log in run_anki_agent_generator(prompt, verbose=True):
-                    await websocket.send_json({"type": "log", "message": log})
-
-                # Find new file in session directory
-                current_files = set(glob.glob(os.path.join(session_dir, "*.apkg")))
-                new_files = current_files - existing_files
-
-                generated_file_path = None
-                if new_files:
-                    generated_file_path = max(new_files, key=os.path.getctime)
-
-                if generated_file_path:
-                    filename = os.path.basename(generated_file_path)
-                    # Store in global session store
-                    session_files[session_id] = {
-                        "filepath": generated_file_path,
-                        "filename": filename
-                    }
-                    # Send session_id and filename
-                    await websocket.send_json(
-                        {
-                            "type": "complete",
-                            "session_id": session_id,
-                            "filename": filename,
-                        }
-                    )
-                else:
-                    await websocket.send_json(
-                        {"type": "error", "message": "No .apkg file was generated."}
-                    )
-
-            except Exception as e:
-                await websocket.send_json({"type": "error", "message": str(e)})
+            # Start new generation task
+            generation_task = asyncio.create_task(
+                run_generation_task(websocket, prompt, session_dir, session_id)
+            )
 
     except WebSocketDisconnect:
-        # Optional: cleanup session directory on disconnect?
-        # Maybe keep it for a while so they can download?
-        # For now, we leave it. A cron job could clean it up.
-        print(f"Client {session_id} disconnected")
+        print(f"Client {session_id} disconnected.")
     finally:
+        if generation_task and not generation_task.done():
+            print(f"Cancelling active generation task for {session_id}")
+            generation_task.cancel()
+            try:
+                # IMPORTANT: We must await the cancelled task to allow its 
+                # finally blocks and async context managers to clean up.
+                await generation_task
+            except asyncio.CancelledError:
+                print(f"Active generation task for {session_id} successfully cancelled.")
+            except Exception as e:
+                print(f"Error during task cancellation for {session_id}: {e}")
+        
         output_dir_var.reset(token)
+        print(f"Session cleaned up: {session_id}")
 
 
 @app.get("/download/{session_id}")
@@ -103,6 +159,8 @@ async def download_file(session_id: str):
     file_info = session_files[session_id]
     filepath = file_info["filepath"]
     filename = file_info["filename"]
+
+    print(f"User triggered download for session {session_id}: {filename}")
 
     # Simple security: check file exists and has .apkg extension
     if not os.path.exists(filepath) or not filepath.endswith('.apkg'):
