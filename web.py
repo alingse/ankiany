@@ -28,7 +28,9 @@ async def get():
     return FileResponse("static/index.html")
 
 
-async def run_generation_task(websocket: WebSocket, prompt: str, session_dir: str, session_id: str):
+async def run_generation_task(
+    websocket: WebSocket, prompt: str, session_dir: str, session_id: str
+):
     """
     Helper to run the generator and handle its output.
     """
@@ -42,7 +44,9 @@ async def run_generation_task(websocket: WebSocket, prompt: str, session_dir: st
                 await websocket.send_json({"type": "log", "message": log})
             except (RuntimeError, WebSocketDisconnect):
                 # Socket is closed, stop generating and exit loop to trigger cleanup
-                print(f"WebSocket closed for session {session_id}, stopping generation.")
+                print(
+                    f"WebSocket closed for session {session_id}, stopping generation."
+                )
                 return
         end_time = time.perf_counter()
         elapsed_time = end_time - start_time
@@ -65,7 +69,7 @@ async def run_generation_task(websocket: WebSocket, prompt: str, session_dir: st
                 # Store in global session store
                 session_files[session_id] = {
                     "filepath": generated_file_path,
-                    "filename": filename
+                    "filename": filename,
                 }
                 # Send session_id and filename
                 await websocket.send_json(
@@ -73,7 +77,7 @@ async def run_generation_task(websocket: WebSocket, prompt: str, session_dir: st
                         "type": "complete",
                         "session_id": session_id,
                         "filename": filename,
-                        "elapsed_time": elapsed_time
+                        "elapsed_time": elapsed_time,
                     }
                 )
             except (RuntimeError, WebSocketDisconnect):
@@ -91,10 +95,11 @@ async def run_generation_task(websocket: WebSocket, prompt: str, session_dir: st
         raise
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         try:
             await websocket.send_json({"type": "error", "message": str(e)})
-        except:
+        except Exception:
             pass
 
 
@@ -140,14 +145,16 @@ async def websocket_endpoint(websocket: WebSocket):
             print(f"Cancelling active generation task for {session_id}")
             generation_task.cancel()
             try:
-                # IMPORTANT: We must await the cancelled task to allow its 
+                # IMPORTANT: We must await the cancelled task to allow its
                 # finally blocks and async context managers to clean up.
                 await generation_task
             except asyncio.CancelledError:
-                print(f"Active generation task for {session_id} successfully cancelled.")
+                print(
+                    f"Active generation task for {session_id} successfully cancelled."
+                )
             except Exception as e:
                 print(f"Error during task cancellation for {session_id}: {e}")
-        
+
         output_dir_var.reset(token)
         print(f"Session cleaned up: {session_id}")
 
@@ -168,17 +175,19 @@ async def download_file(session_id: str):
     print(f"User triggered download for session {session_id}: {filename}")
 
     # Simple security: check file exists and has .apkg extension
-    if not os.path.exists(filepath) or not filepath.endswith('.apkg'):
+    if not os.path.exists(filepath) or not filepath.endswith(".apkg"):
         raise HTTPException(status_code=404, detail="File not found")
 
     # Encode filename for safe HTTP header
-    encoded_filename = quote(filename, safe='')
+    encoded_filename = quote(filename, safe="")
 
     return FileResponse(
         filepath,
         media_type="application/octet-stream",
         filename=encoded_filename,
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
+        },
     )
 
 
@@ -188,13 +197,24 @@ if __name__ == "__main__":
     import argparse
 
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description="Run the Anki card generation web server")
-    parser.add_argument("--port", type=int, default=8001, help="Port to run the server on (default: 8001)")
+    parser = argparse.ArgumentParser(
+        description="Run the Anki card generation web server"
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8001,
+        help="Port to run the server on (default: 8001)",
+    )
     args = parser.parse_args()
 
     # 修改日志格式，加入时间戳
-    LOGGING_CONFIG["formatters"]["default"]["fmt"] = "%(asctime)s %(levelprefix)s %(message)s"
-    LOGGING_CONFIG["formatters"]["access"]["fmt"] = '%(asctime)s %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s'
+    LOGGING_CONFIG["formatters"]["default"]["fmt"] = (
+        "%(asctime)s %(levelprefix)s %(message)s"
+    )
+    LOGGING_CONFIG["formatters"]["access"]["fmt"] = (
+        '%(asctime)s %(levelprefix)s %(client_addr)s - "%(request_line)s" %(status_code)s'
+    )
     LOGGING_CONFIG["formatters"]["default"]["datefmt"] = "%Y-%m-%d %H:%M:%S"
     LOGGING_CONFIG["formatters"]["access"]["datefmt"] = "%Y-%m-%d %H:%M:%S"
 

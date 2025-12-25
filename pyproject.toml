@@ -14,3 +14,8 @@ dependencies = [
     "uvicorn[standard]>=0.38.0",
     "websockets>=15.0.1",
 ]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.10",
+]

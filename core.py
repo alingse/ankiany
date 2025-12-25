@@ -75,6 +75,7 @@ async def run_anki_agent_generator(user_prompt: str, verbose: bool = False):
     except Exception as e:
         yield f"❌ 发生错误: {e}"
         import traceback
+
         traceback.print_exc()
 
 
