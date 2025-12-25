@@ -1,6 +1,7 @@
 import asyncio
 import argparse
 import sys
+import time
 from core import run_anki_agent
 
 
@@ -10,7 +11,11 @@ async def main():
     parser.add_argument("--verbose", action="store_true", help="显示详细的工具调用日志")
     args = parser.parse_args()
 
+    start_time = time.perf_counter()
     await run_anki_agent(args.prompt, args.verbose)
+    end_time = time.perf_counter()
+
+    print(f"\n⏱️ 总耗时: {end_time - start_time:.2f} 秒")
 
 
 if __name__ == "__main__":

@@ -132,6 +132,7 @@ async def create_anki_package_from_cards(args: Dict[str, Any]) -> Dict[str, Any]
     import uuid
     import json
     import hashlib
+    import html
 
     # --- Debug Logic: Save input to a local JSON file ---
     debug_suffix = str(uuid.uuid4())[:8]
@@ -227,6 +228,7 @@ async def create_anki_package_from_cards(args: Dict[str, Any]) -> Dict[str, Any]
         m_type = card_dict.get("model_type")
         content = card_dict.get("content", "").strip()
         if not content:
+            print(f"WARNING: Skipped card (Empty content)")
             skipped_count += 1
             continue
 
@@ -237,9 +239,9 @@ async def create_anki_package_from_cards(args: Dict[str, Any]) -> Dict[str, Any]
             parts = content.split("||", 1)
             if len(parts) == 2:
                 front, back = parts[0], parts[1]
-                # Replace newlines with <br> for better HTML rendering in Anki
-                front_html = front.strip().replace("\n", "<br>")
-                back_html = back.strip().replace("\n", "<br>")
+                # HTML escape first, then replace newlines with <br>
+                front_html = html.escape(front.strip()).replace("\n", "<br>")
+                back_html = html.escape(back.strip()).replace("\n", "<br>")
                 note = genanki.Note(
                     model=model_qa, 
                     fields=[front_html, back_html],
@@ -250,14 +252,15 @@ async def create_anki_package_from_cards(args: Dict[str, Any]) -> Dict[str, Any]
                 parts = content.split("\n\n", 1)
                 if len(parts) == 2:
                     front, back = parts
-                    front_html = front.strip().replace("\n", "<br>")
-                    back_html = back.strip().replace("\n", "<br>")
+                    front_html = html.escape(front.strip()).replace("\n", "<br>")
+                    back_html = html.escape(back.strip()).replace("\n", "<br>")
                     note = genanki.Note(
                         model=model_qa, 
                         fields=[front_html, back_html],
                         guid=genanki.guid_for(front.strip(), back.strip(), topic)
                     )
                 else:
+                    print(f"WARNING: Skipped QA card (Missing '||' separator): {content[:50]}...")
                     skipped_count += 1
 
         elif m_type == "cloze":
@@ -265,7 +268,19 @@ async def create_anki_package_from_cards(args: Dict[str, Any]) -> Dict[str, Any]
             if "{{c" not in content:
                 content = f"{{{{c1::{content}}}}}"
             
-            content_html = content.strip().replace("\n", "<br>")
+            # For cloze, we want to escape the content BUT preserve the {{c1::...}} tags.
+            # This is tricky because html.escape will turn {{ into {{ etc (actually { is safe in HTML usually, but < > & " ' are not).
+            # genanki expects the {{c1::...}} syntax to remain intact for processing, but the *content* inside and outside should be HTML safe.
+            # However, standard practice with genanki is to just pass the string.
+            # If we simply html.escape everything, {{c1::foo}} becomes {{c1::foo}} which is fine as { is not escaped by default in python's html.escape unless quote=True? No, { is not escaped.
+            # Let's check: html.escape('<foo>') -> '&lt;foo&gt;'.
+            # html.escape('{{c1::foo}}') -> '{{c1::foo}}'.
+            # So simple html.escape should be safe for the Cloze tags themselves, assuming they don't contain < or > inside the control chars (which they don't).
+            # BUT, if the user put <br> or other HTML in their content intentionally (which the prompt might do? No, prompt outputs plain text mostly),
+            # we are now escaping it. The prompt says "content: string", usually plain text.
+            # The previous code was replacing \n with <br>.
+            
+            content_html = html.escape(content.strip()).replace("\n", "<br>")
             note = genanki.Note(
                 model=model_cloze, 
                 fields=[content_html],
@@ -275,15 +290,16 @@ async def create_anki_package_from_cards(args: Dict[str, Any]) -> Dict[str, Any]
         elif m_type == "mcq":
             parts = content.split("||")
             if len(parts) >= 3:
-                question = parts[0].strip().replace("\n", "<br>")
-                options = parts[1].strip().replace("\n", "<br>")
-                answer = parts[2].strip().replace("\n", "<br>")
+                question = html.escape(parts[0].strip()).replace("\n", "<br>")
+                options = html.escape(parts[1].strip()).replace("\n", "<br>")
+                answer = html.escape(parts[2].strip()).replace("\n", "<br>")
                 note = genanki.Note(
                     model=model_mcq, 
                     fields=[question, options, answer],
                     guid=genanki.guid_for(question, options, topic)
                 )
             else:
+                print(f"WARNING: Skipped MCQ card (Missing '||' parts or insufficient parts): {content[:50]}...")
                 skipped_count += 1
 
         if note:
@@ -308,6 +324,7 @@ async def create_anki_package_from_cards(args: Dict[str, Any]) -> Dict[str, Any]
         f"- 跳过(格式错误): {skipped_count}\n"
         f"- 文件名: {filename}"
     )
+    print(result_message)
     return {"content": [{"type": "text", "text": result_message}]}
 
 

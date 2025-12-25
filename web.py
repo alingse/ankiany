@@ -2,6 +2,7 @@ import os
 import glob
 import uuid
 import asyncio
+import time
 from urllib.parse import quote
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import FileResponse
@@ -35,6 +36,7 @@ async def run_generation_task(websocket: WebSocket, prompt: str, session_dir: st
         # Track generated files in the SESSION directory
         existing_files = set(glob.glob(os.path.join(session_dir, "*.apkg")))
 
+        start_time = time.perf_counter()
         async for log in run_anki_agent_generator(prompt, verbose=True):
             try:
                 await websocket.send_json({"type": "log", "message": log})
@@ -42,6 +44,8 @@ async def run_generation_task(websocket: WebSocket, prompt: str, session_dir: st
                 # Socket is closed, stop generating and exit loop to trigger cleanup
                 print(f"WebSocket closed for session {session_id}, stopping generation.")
                 return
+        end_time = time.perf_counter()
+        elapsed_time = end_time - start_time
 
         # Find new file in session directory
         current_files = set(glob.glob(os.path.join(session_dir, "*.apkg")))
@@ -69,6 +73,7 @@ async def run_generation_task(websocket: WebSocket, prompt: str, session_dir: st
                         "type": "complete",
                         "session_id": session_id,
                         "filename": filename,
+                        "elapsed_time": elapsed_time
                     }
                 )
             except (RuntimeError, WebSocketDisconnect):

@@ -128,6 +128,41 @@
             cursor: not-allowed;
         }
 
+        .progress-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            margin-top: 5px;
+            margin-bottom: 5px;
+        }
+
+        .progress-bar-bg {
+            flex-grow: 1;
+            height: 4px;
+            background-color: #e0e0e0;
+            border-radius: 2px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background-color: #52c41a;
+            transition: width 0.1s linear, background-color 0.5s linear;
+        }
+
+        .timer-label {
+            font-size: 14px;
+            color: #555;
+            font-variant-numeric: tabular-nums;
+            min-width: 50px;
+            text-align: right;
+            font-family: monospace;
+            transition: color 0.3s;
+        }
+
         #logArea {
             background-color: var(--console-bg);
             color: var(--console-text);
@@ -302,6 +337,13 @@
             <button id="generateBtn" data-i18n="generate">Generate</button>
         </div>
 
+        <div class="progress-container" id="progressContainer" style="display: none;">
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="progressBar"></div>
+            </div>
+            <div class="timer-label" id="timerLabel">0.0s</div>
+        </div>
+
         <div id="logArea">
             <div class="log-entry" data-i18n="waiting">Waiting for input...</div>
         </div>
@@ -331,9 +373,14 @@
         const newBtn = document.getElementById('newBtn');
         const resultMessage = document.getElementById('resultMessage');
         const generatedFilename = document.getElementById('generatedFilename');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const timerLabel = document.getElementById('timerLabel');
 
         let ws = null;
         let currentLang = 'en';
+        let timerInterval = null;
+        let startTime = 0;
 
         const translations = {
             en: {
@@ -388,6 +435,80 @@
         const browserLang = navigator.language.startsWith('zh') ? 'zh' : 'en';
         setLanguage(browserLang);
 
+        function startTimer() {
+            startTime = Date.now();
+            progressContainer.style.display = 'flex';
+            progressBar.style.width = '0%';
+            // Reset to solid green, clearing any gradients
+            progressBar.style.background = '#52c41a';
+            timerLabel.textContent = '0.0s';
+            timerLabel.style.color = '#555';
+            
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(updateTimer, 50); // Faster update for smoother animation
+        }
+
+        function stopTimer(finalElapsedTime) {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            // Force color back to solid green on completion
+            progressBar.style.background = '#52c41a';
+            timerLabel.style.color = '#52c41a';
+            
+            // If server provided precise time, use it
+            if (finalElapsedTime !== undefined) {
+                timerLabel.textContent = finalElapsedTime.toFixed(1) + 's';
+                // Ensure visual sync
+                let percentage = Math.min((finalElapsedTime / 120) * 100, 100);
+                progressBar.style.width = percentage + '%';
+            } else {
+                updateTimer(); // Final update
+            }
+        }
+
+        function updateTimer() {
+            const now = Date.now();
+            const elapsedSeconds = (now - startTime) / 1000;
+            
+            timerLabel.textContent = elapsedSeconds.toFixed(1) + 's';
+
+            // Progress bar logic
+            // 0 -> 120s (2 mins): Fill from 0% to 100%
+            let percentage = (elapsedSeconds / 120) * 100;
+            if (percentage > 100) percentage = 100;
+            progressBar.style.width = percentage + '%';
+
+            // Color logic
+            // <= 120s: Solid Green (#52c41a)
+            // > 120s: Marquee scanning effect (Red stripe on Green base)
+            if (elapsedSeconds <= 120) {
+                progressBar.style.background = '#52c41a';
+                timerLabel.style.color = '#555';
+            } else {
+                // Marquee effect
+                // Cycle duration: 2 seconds to cross the bar
+                const cycleDuration = 2.0; 
+                const phase = (elapsedSeconds % cycleDuration) / cycleDuration; // 0.0 -> 1.0
+                
+                // Calculate position of the red pulse center (from -20% to 120% to fully clear edges)
+                const center = (phase * 140) - 20;
+                
+                // Define gradient stops for the red pulse
+                // Structure: Green ... [Green -> Red -> Green] ... Green
+                const spread = 15; // Width of the pulse
+                const stop1 = center - spread;
+                const stop2 = center;
+                const stop3 = center + spread;
+                
+                // Use linear-gradient to draw the frame
+                progressBar.style.background = `linear-gradient(90deg, #52c41a ${stop1}%, #f5222d ${stop2}%, #52c41a ${stop3}%)`;
+                
+                timerLabel.style.color = '#f5222d';
+            }
+        }
+
         function appendLog(message, type='normal') {
             const div = document.createElement('div');
             div.className = 'log-entry ' + type;
@@ -406,6 +527,7 @@
                 if (data.type === 'start') {
                     logArea.innerHTML = '';
                     appendLog(translations[currentLang].started, 'normal');
+                    startTimer();
                 } else if (data.type === 'log') {
                     let msg = data.message;
                     let type = 'normal';
@@ -415,9 +537,11 @@
                     if (msg.startsWith('📊') || msg.startsWith('💰')) type = 'usage';
                     appendLog(msg, type);
                 } else if (data.type === 'complete') {
+                    stopTimer(data.elapsed_time);
                     appendLog(translations[currentLang].done, 'normal');
                     showDownload(data.session_id, data.filename);
                 } else if (data.type === 'error') {
+                    stopTimer();
                     appendLog(translations[currentLang].error + data.message, 'error');
                     generateBtn.disabled = false;
                 }
@@ -425,6 +549,7 @@
 
             ws.onclose = function() {
                 // appendLog('Connection closed.', 'error');
+                if (timerInterval) stopTimer();
                 generateBtn.disabled = false;
             };
         }
@@ -475,6 +600,7 @@
             topicInput.value = '';
             logArea.innerHTML = `<div class="log-entry" data-i18n="waiting">${translations[currentLang].waiting}</div>`;
             logArea.style.display = 'none'; // Hide log area on new
+            progressContainer.style.display = 'none'; // Hide progress bar
             resultMessage.style.display = 'none';
             actionArea.classList.remove('visible');
             downloadBtn.style.display = 'none';
